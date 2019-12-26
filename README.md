@@ -132,17 +132,6 @@ Additionally, results returned in the form of JSON objects will retain their rel
   })
 ```
 
-```javascript
-  Person.findAll({ age: Predicate.P_gt(34) }, (error, results) => {
-    if (error) {
-      console.error(error);
-    } else {
-      console.log(`Results: ${results.length}`);
-      console.log(results);
-    }
-  })
-```
-
 ## Defining Models
 
 _This ORM utilizes Model definitions similar to [Sequelize](https://github.com/sequelize/sequelize) to add structure to developing servers around graph databases.  Queries outside of the constraints of pre-defined models can be run using the generic [`.query`](#query) or [`.queryRaw`](#queryRaw)._
@@ -634,6 +623,75 @@ Person.find({'name': 'Joe'}, (error, result) => {
 Knows.find({'through': 'school'}).findVertex(Person, {'occupation': 'developer'}, (error, result) => {
   // Result is array of people who are developers who know other people through school
 });
+```
+
+## Predicate Methods
+
+### P_eq(object)
+* `object`: Object to check equality with
+
+### P_neq(object)
+* `object`: Object to check inequality with
+
+### P_lt(object)
+* `object`: Object to check less than with
+
+### P_lte(object)
+* `object`: Object to check less than equal to with
+
+### P_gt(object)
+* `object`: Object to check greater than with
+
+### P_gte(object)
+* `object`: Object to check greater than equal to with
+
+### P_inside(object1, object2)
+* `object1`: Object to check greater than with
+* `object2`: Object to check less than with
+
+### P_outside(object1, object2)
+* `object1`: Object to check less than with
+* `object2`: Object to check greater than with
+
+### P_between(object1, object2)
+* `object1`: Object to check greater than equal to with
+* `object2`: Object to check less than equal to with
+
+### P_within(objects)
+* `objects`: Array to have one of the values
+
+### P_without(objects)
+* `objects`: Array to not have the value
+
+### TextP_startingWith(str)
+* `str`: String to start with
+
+### TextP_endingWith(str)
+* `str`: String to end with
+
+### TextP_containing(str)
+* `str`: String contained
+
+### TextP_notStartingWith(str)
+* `str`: String to not start with
+
+### TextP_notEndingWith(str)
+* `str`: String to not end with
+
+### TextP_notContaining(str)
+* `str`: String to not be contained
+
+#### Example
+
+```javascript
+  Person.findAll({ age: Predicate.P_gt(34) }, (error, results) => {
+    if (error) {
+      console.error(error);
+    } else {
+      console.log(`Results: ${results.length}`);
+      console.log(results);
+    }
+  })
 ```
 
 ## License
