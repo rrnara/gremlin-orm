@@ -9,7 +9,7 @@ Azure Cosmos DB with more to come in the future.
 ## Installation
 
 ```bash
-$ npm install --save gremlin-orm
+$ npm install --save @rrnara/gremlin-orm
 ```
 
 ## Example
@@ -102,7 +102,7 @@ Initialize the gremlin-orm instance with parameters matching the [gremlin-javasc
 * [findVertex](#findVertex) - find all vertices that are connected by the relevant edges
 
 #### Predicate Methods
-Refer to (Tinkerpop documentation)[https://tinkerpop.apache.org/docs/3.4.0/reference/#a-note-on-predicates]
+Refer to [Tinkerpop documentation](https://tinkerpop.apache.org/docs/3.4.0/reference/#a-note-on-predicates)
 
 
 ## Method Chaining
@@ -635,18 +635,6 @@ Knows.find({'through': 'school'}).findVertex(Person, {'occupation': 'developer'}
   // Result is array of people who are developers who know other people through school
 });
 ```
-
-## Contributing
-
-Please submit issues/pull requests if you have feedback or message the gremlin-orm team to be added as a contributor: gremlin.orm@gmail.com
-
-## Authors
-
-Freeman Chen (https://github.com/freemanchen)
-
-Gordon Farquharson (https://github.com/godronus)
-
-Jeremy Lee (https://github.com/jeremyslee)
 
 ## License
 
