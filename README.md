@@ -15,11 +15,22 @@ $ npm install --save gremlin-orm
 ## Example
 
 ```javascript
-const gremlinOrm = require('gremlin-orm');
-const g = new gremlinOrm('neo4j'); // connects to localhost:8182 by default
+const GremlinOrm = require('gremlin-orm');
+const Gremlin = require('gremlin');
+const Predicate = require('gremlin-orm/predicate');
+// const g = new gremlinOrm('neo4j'); // connects to localhost:8182 by default
 
-// Can pass more configuation
-// const g = new gremlinOrm(['azure', 'partition-name'], process.env.GPORT, process.env.GHOST, {ssl: true, user: process.env.GUSER, password: process.env.GPASS});
+const user = '/dbs/--TESTDB--/colls/--TESTGRAPH--';
+const primaryKey = '--TEST-PRIMARY-KEY--';
+const authenticator = new Gremlin.driver.auth.PlainTextSaslAuthenticator(user, primaryKey);
+const options = {
+  authenticator,
+  traversalsource: 'g',
+  rejectUnauthorized: true,
+  mimeType: 'application/vnd.gremlin-v2.0+json'
+};
+const client = new Gremlin.driver.Client('wss://--TEST-COSMOSDB--.gremlin.cosmos.azure.com:443/', options);
+const g = new GremlinOrm(['azure', 'pk', 'test-partition'], client);
 
 const Person = g.define('person', {
   name: {
@@ -57,26 +68,8 @@ Person.create(req.body, (error, result) => {
 Initialize the gremlin-orm instance with parameters matching the [gremlin-javascript](https://github.com/jbmusso/gremlin-javascript/blob/master/gremlin-client/README.md) `createClient()` initialization - with the addition of the dialect argument.
 
 #### Arguments
-* `dialect` (string or Array): Required argument that takes string (`'neo4j'`) or array (`['azure', '<partitionName>']`).
-* `port`: Defaults to '8182'
-* `host`: Defaults to localhost
-* `options`: Options object which takes the same parameters as gremlin-javascript's `createClient()`
-  * `session`: whether to use sessions or not (default: `false`)
-  * `language`: the script engine to use on the server, see your gremlin-server.yaml file (default: `"gremlin-groovy"`)
-  * `op` (advanced usage): The name of the "operation" to execute based on the available OpProcessor (default: `"eval"`)
-  * `processor` (advanced usage): The name of the OpProcessor to utilize (default: `""`)
-  * `accept` (advanced usage): mime type of returned responses, depending on the serializer (default: `"application/json"`)
-  * `path`: a custom URL connection path if connecting to a Gremlin server behind a WebSocket proxy
-  * `ssl`: whether to use secure WebSockets or not (default: `false`)
-  * `rejectUnauthorized`: when using ssl, whether to reject self-signed certificates or not (default: `true`). Useful in development mode when using gremlin-server self signed certificates. Do NOT use self-signed certificates with this option in production.
-  * `user` : username to use for SASL authentication
-  * `password` : password to use for SASL authentication
-
-#### Example
-```javascript
-const gremlinOrm = require('gremlin-orm');
-const g = new gremlinOrm(['azure', 'partitionName'], '443', 'example.com', {ssl: true, user: 'sample-user', password: 'sample-password'});
-```
+* `dialect` (string or Array): Required argument that takes string (`'neo4j'`) or array (`['azure', '<partitionName>', '<defaultPartitionValue>']`).
+* `client`: Gremlin Client
 
 ### Methods
 
@@ -108,6 +101,9 @@ const g = new gremlinOrm(['azure', 'partitionName'], '443', 'example.com', {ssl:
 * [findAll](#edge-model-findAll) - find all edges with matching properties
 * [findVertex](#findVertex) - find all vertices that are connected by the relevant edges
 
+#### Predicate Methods
+Refer to (Tinkerpop documentation)[https://tinkerpop.apache.org/docs/3.4.0/reference/#a-note-on-predicates]
+
 
 ## Method Chaining
 
@@ -133,6 +129,17 @@ Additionally, results returned in the form of JSON objects will retain their rel
     john.findRelated('knows', {'since': '2015'}, (error, result) => {
       // Send people John knows to client
     })
+  })
+```
+
+```javascript
+  Person.findAll({ age: Predicate.P_gt(34) }, (error, results) => {
+    if (error) {
+      console.error(error);
+    } else {
+      console.log(`Results: ${results.length}`);
+      console.log(results);
+    }
   })
 ```
 

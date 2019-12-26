@@ -1,3 +1,5 @@
+/* eslint-disable new-cap */
+/* eslint-disable standard/no-callback-literal */
 const Model = require('./model');
 
 /**
@@ -25,10 +27,11 @@ class VertexModel extends Model {
       return;
     }
     let gremlinStr = `g.addV('${this.label}')`;
+    const additionalProps = this.defaultCreateProps();
     if (this.g.dialect === this.g.DIALECTS.AZURE) {
-      gremlinStr += `.property('${this.g.partition}', '${props[Object.keys(props)[0]]}')`;
+      additionalProps[this.g.partitionKey] = this.g.partitionValue || props[Object.keys(props)[0]];
     }
-    gremlinStr += this.actionBuilder('property', props);
+    gremlinStr += this.actionBuilder('property', Object.assign(additionalProps, props));
     return this.executeQuery(gremlinStr, callback, true);
   }
 
@@ -43,8 +46,7 @@ class VertexModel extends Model {
     if (typeof arguments[3] === 'function' || arguments.length < 4) {
       both = false;
       cb = arguments[3]
-    }
-    else {
+    } else {
       both = arguments[3];
       cb = arguments[4];
     }
@@ -54,21 +56,19 @@ class VertexModel extends Model {
       label = edgeModel;
       props = properties;
       model = new this.g.edgeModel(label, {}, this.g)
-    }
-    else {
+    } else {
       label = edgeModel.label;
       props = this.parseProps(properties, edgeModel);
       model = edgeModel;
     }
 
-    let outGremlinStr = this.getGremlinStr();
+    const outGremlinStr = this.getGremlinStr();
     let inGremlinStr = vertex.getGremlinStr();
 
     if (outGremlinStr === '') {
-      return cb({'error': 'Gremlin Query has not been initialised for out Vertex'});
-    }
-    else if (inGremlinStr === '') {
-      return cb({'error': 'Gremlin Query has not been initialised for in Vertex'});
+      return cb({ error: 'Gremlin Query has not been initialised for out Vertex' });
+    } else if (inGremlinStr === '') {
+      return cb({ error: 'Gremlin Query has not been initialised for in Vertex' });
     }
     if (typeof edgeModel !== 'string') {
       const checkSchemaResponse = this.checkSchema(edgeModel.schema, props, true);
@@ -81,13 +81,13 @@ class VertexModel extends Model {
     // Remove 'g' from 'g.V()...'
     inGremlinStr = inGremlinStr.slice(1);
 
-    const [ a ] = this.getRandomVariable();
+    const [a] = this.getRandomVariable();
     let gremlinQuery = outGremlinStr + `.as('${a}')` + inGremlinStr;
     gremlinQuery += `.addE('${label}')${this.actionBuilder('property', props)}.from('${a}')`;
 
     if (both === true) {
-      const [ b ] = this.getRandomVariable(1, [a]);
-      let extraGremlinQuery = `${vertex.getGremlinStr()}.as('${b}')${this.getGremlinStr().slice(1)}` +
+      const [b] = this.getRandomVariable(1, [a]);
+      const extraGremlinQuery = `${vertex.getGremlinStr()}.as('${b}')${this.getGremlinStr().slice(1)}` +
                       `.addE('${label}')${this.actionBuilder('property', props)}.from('${b}')`;
       const intermediate = (err, results) => {
         if (err) return cb(err);
@@ -99,8 +99,7 @@ class VertexModel extends Model {
         this.executeOrPass.call(model, extraGremlinQuery, concater);
       }
       return this.executeOrPass.call(model, gremlinQuery, intermediate);
-    }
-    else {
+    } else {
       return this.executeOrPass.call(model, gremlinQuery, cb);
     }
   }
@@ -111,7 +110,7 @@ class VertexModel extends Model {
   */
   find(properties, callback) {
     const props = this.parseProps(properties);
-    let gremlinStr = `g.V(${this.getIdFromProps(props)}).hasLabel('${this.label}')` + this.actionBuilder('has', props);
+    const gremlinStr = `g.V(${this.getIdFromProps(props)}).hasLabel('${this.label}')` + this.actionBuilder('has', props);
     return this.executeOrPass(gremlinStr, callback, true);
   }
 
@@ -121,7 +120,7 @@ class VertexModel extends Model {
   */
   findAll(properties, callback) {
     const props = this.parseProps(properties);
-    let gremlinStr = `g.V(${this.getIdFromProps(props)}).hasLabel('${this.label}')` + this.actionBuilder('has', props);
+    const gremlinStr = `g.V(${this.getIdFromProps(props)}).hasLabel('${this.label}')` + this.actionBuilder('has', props);
     return this.executeOrPass(gremlinStr, callback);
   }
 
@@ -137,8 +136,7 @@ class VertexModel extends Model {
     if (typeof edgeModel === 'string') {
       label = edgeModel;
       props = properties;
-    }
-    else {
+    } else {
       label = edgeModel.label;
       props = this.parseProps(properties, edgeModel);
     }
@@ -147,14 +145,12 @@ class VertexModel extends Model {
       inModel = this;
       inLabel = this.label;
       cb = arguments[3];
-    }
-    else {
+    } else {
       if (typeof arguments[3] === 'string') {
         inLabel = arguments[3];
         inModel = new this.g.vertexModel(inLabel, {}, this.g);
         cb = arguments[4];
-      }
-      else {
+      } else {
         inModel = arguments[3];
         inLabel = inModel.label;
         cb = arguments[4];
@@ -180,8 +176,7 @@ class VertexModel extends Model {
       label = edgeModel;
       props = properties;
       model = new this.g.edgeModel(label, {}, this.g)
-    }
-    else {
+    } else {
       label = edgeModel.label;
       props = this.parseProps(properties, edgeModel);
       model = edgeModel;
@@ -197,24 +192,21 @@ class VertexModel extends Model {
   * @param {object} properties
   */
   findImplicit(edgeModel, properties, callback) {
-    let label, props, model;
+    let label, props;
     if (typeof edgeModel === 'string') {
       label = edgeModel;
       props = properties;
-    }
-    else {
+    } else {
       label = edgeModel.label;
       props = this.parseProps(properties, edgeModel);
     }
     let gremlinStr = this.getGremlinStr();
-    let originalAs = this.getRandomVariable()[0];
+    const originalAs = this.getRandomVariable()[0];
     gremlinStr += `.as('${originalAs}').outE('${label}')${this.actionBuilder('has', props)}` +
                   `inV().inE('${label}')${this.actionBuilder('has', props)}.outV()` +
                   `.where(neq('${originalAs}'))`;
     return this.executeOrPass(gremlinStr, callback);
   }
 }
-
-
 
 module.exports = VertexModel;

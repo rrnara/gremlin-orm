@@ -1,31 +1,21 @@
-const Gremlin = require('gremlin');
 const VertexModel = require('./models/vertex-model');
 const EdgeModel = require('./models/edge-model');
 
 class Gorm {
-  constructor(dialect, port, url, options) {
+  constructor(dialect, client) {
     // Constants
-    this.DIALECTS = {AZURE: 'azure'};
+    this.DIALECTS = { AZURE: 'azure' };
     this.STRING = 'string';
     this.NUMBER = 'number';
     this.BOOLEAN = 'boolean';
     this.DATE = 'date';
 
-    const argLength = arguments.length;
-    if (argLength === 0) {
-      this.client = null;
-    } else if (argLength === 1) {
-      this.client = Gremlin.createClient();
-    } else if (argLength === 3) {
-      this.client = Gremlin.createClient(port, url);
-    } else {
-      this.client = Gremlin.createClient(port, url, options);
-    }
+    this.client = client;
     if (Array.isArray(dialect)) {
       this.dialect = dialect[0];
-      this.partition = dialect[1];
-    }
-    else {
+      this.partitionKey = dialect[1];
+      this.partitionValue = dialect[2];
+    } else {
       this.dialect = dialect;
     }
     this.definedVertices = {};
@@ -69,9 +59,7 @@ class Gorm {
   * @param {function} callback Some callback function with (err, result) arguments.
   */
   queryRaw(string, callback) {
-    this.client.execute(string, (err, result) => {
-      callback(err, result);
-    });
+    this.client.submit(string).then(result => callback(null, result), error => callback(error));
   }
 
   /**
@@ -88,7 +76,15 @@ class Gorm {
       EDGE = new EdgeModel('null', {}, this.g);
     }
 
-    gremlinResponse.forEach((grem) => {
+    let gremlinResponseToUse;
+    if (Array.isArray(gremlinResponse)) {
+      gremlinResponseToUse = gremlinResponse;
+    } else if (typeof gremlinResponse === 'object' && Object.prototype.hasOwnProperty.call(gremlinResponse, '_items')) {
+      gremlinResponseToUse = gremlinResponse._items;
+    } else {
+      gremlinResponseToUse = [gremlinResponse];
+    }
+    gremlinResponseToUse.forEach((grem) => {
       let object;
 
       if (this.checkModels) {
@@ -96,8 +92,7 @@ class Gorm {
         // but data returned could be EdgeModel
         if (grem.type === 'vertex') object = Object.create(VERTEX);
         else if (grem.type === 'edge') object = Object.create(EDGE);
-      }
-      else {
+      } else {
         object = Object.create(this);
       }
       object.id = grem.id;
@@ -109,53 +104,46 @@ class Gorm {
         if (grem.outVLabel) object.outVLabel = grem.outVLabel;
       }
 
-      let currentPartition = this.g.partition ? this.g.partition : '';
+      const currentPartition = this.g.partitionKey ? this.g.partitionKey : '';
       if (grem.properties) {
         Object.keys(grem.properties).forEach((propKey) => {
           if (propKey !== currentPartition) {
             let property;
+            let definition = null;
             if (grem.type === 'edge') {
               property = grem.properties[propKey];
+              definition = this.g.definedEdges[grem.label];
             } else {
-              property = grem.properties[propKey][0].value;
+              property = grem.properties[propKey].length > 1 ? grem.properties[propKey].map(p => p.value) : grem.properties[propKey][0].value;
+              definition = this.g.definedVertices[grem.label];
             }
 
-            // If property is defined in schema as a Date type, convert it from
-            // integer date into a JavaScript Date object.
+            // If property is defined in schema as a Date type, convert it from integer date into a JavaScript Date object.
             // Otherwise, no conversion necessary for strings, numbers, or booleans
-            if (this.g.definedVertices[grem.label]) {
-              if (this.g.definedVertices[grem.label][propKey] && this.g.definedVertices[grem.label][propKey].type === this.g.DATE) {
-                object[propKey] = new Date(property);
-              }
-              else {
-                object[propKey] = property;
-              }
-            }
-            else if (this.g.definedEdges[grem.label]) {
-              if (this.g.definedEdges[grem.label][propKey] && this.g.definedEdges[grem.label][propKey].type === this.g.DATE) {
-                object[propKey] = new Date(property);
-              }
-              else {
-                object[propKey] = property;
-              }
-            }
-            else {
+            if (definition && (VertexModel.isDefaultDateProp(propKey) || (definition[propKey] && definition[propKey].type === this.g.DATE))) {
+              object[propKey] = Array.isArray(property) ? property.map(p => new Date(p)) : new Date(property);
+            } else {
               object[propKey] = property;
             }
           }
         });
       }
       if (this.checkModels) {
-        if (grem.type === 'vertex') data[0].push(object);
-        else data[1].push(object);
+        if (grem.type === 'vertex') {
+          data[0].push(object);
+        } else {
+          data[1].push(object);
+        }
+      } else {
+        data.push(object);
       }
-      else data.push(object);
     });
     if (this.checkModels) {
       VERTEX.addArrayMethods(data[0]);
       EDGE.addArrayMethods(data[1]);
+    } else {
+      this.addArrayMethods(data);
     }
-    else this.addArrayMethods(data);
     this.checkModels = false;
     return data;
   }

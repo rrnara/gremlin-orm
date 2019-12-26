@@ -23,44 +23,48 @@ class EdgeModel extends Model {
     if (typeof arguments[3] === 'function' || arguments.length < 4) {
       both = false;
       cb = arguments[3]
-    }
-    else {
+    } else {
       both = arguments[3];
       cb = arguments[4];
     }
     if (!cb) throw new Error('Callback is required');
     if (!(outV && inV)) {
-      cb({'error': 'Need both an inV and an outV.'});
+      // eslint-disable-next-line standard/no-callback-literal
+      cb({ error: 'Need both an inV and an outV.' });
       return;
     }
-    const checkSchemaResponse = this.checkSchema(this.schema, props, true);
+    const propsToUse = Object.assign(this.defaultCreateProps(), props);
+    const checkSchemaResponse = this.checkSchema(this.schema, propsToUse, true);
     if (this.checkSchemaFailed(checkSchemaResponse)) {
       cb(checkSchemaResponse);
       return;
     }
 
-    let outGremlinStr = outV.getGremlinStr();
-    let inGremlinStr = inV.getGremlinStr().slice(1);
+    const outGremlinStr = outV.getGremlinStr();
+    const inGremlinStr = inV.getGremlinStr().slice(1);
 
-    const [ a ] = this.getRandomVariable();
+    const [a] = this.getRandomVariable();
     let gremlinQuery = outGremlinStr + `.as('${a}')` + inGremlinStr;
-    gremlinQuery += `.addE('${this.label}')${this.actionBuilder('property', props)}.from('${a}')`;
+    gremlinQuery += `.addE('${this.label}')${this.actionBuilder('property', propsToUse)}.from('${a}')`;
 
     if (both === true) {
-      const [ b ] = this.getRandomVariable(1, [a]);
-      let extraGremlinQuery = `${inV.getGremlinStr()}.as('${b}')${outV.getGremlinStr().slice(1)}` +
-                      `.addE('${this.label}')${this.actionBuilder('property', props)}.from('${b}')`;
-      let intermediate = (err, results) => {
-        let resultsSoFar = results.slice(0);
-        const concater = (err, results) => {
-          resultsSoFar = resultsSoFar.concat(results);
-          cb(err, resultsSoFar);
+      const [b] = this.getRandomVariable(1, [a]);
+      const extraGremlinQuery = `${inV.getGremlinStr()}.as('${b}')${outV.getGremlinStr().slice(1)}` +
+                      `.addE('${this.label}')${this.actionBuilder('property', propsToUse)}.from('${b}')`;
+      const intermediate = (err, results) => {
+        if (err) {
+          cb(err);
+        } else {
+          let resultsSoFar = results.slice(0);
+          const concater = (err, results) => {
+            resultsSoFar = resultsSoFar.concat(results);
+            cb(err, resultsSoFar);
+          }
+          this.executeQuery(extraGremlinQuery, concater);
         }
-        this.executeQuery(extraGremlinQuery, concater);
       }
       return this.executeQuery(gremlinQuery, intermediate);
-    }
-    else {
+    } else {
       return this.executeQuery(gremlinQuery, cb);
     }
   }
@@ -71,7 +75,7 @@ class EdgeModel extends Model {
   * @param {function} callback Some callback function with (err, result) arguments
   */
   find(props, callback) {
-    let gremlinStr = `g.E(${this.getIdFromProps(props)}).hasLabel('${this.label}')` + this.actionBuilder('has', props);
+    const gremlinStr = `g.E(${this.getIdFromProps(props)}).hasLabel('${this.label}')` + this.actionBuilder('has', props);
     return this.executeOrPass(gremlinStr, callback, true);
   }
 
@@ -81,7 +85,7 @@ class EdgeModel extends Model {
   * @param {function} callback Some callback function with (err, result) arguments
   */
   findAll(props, callback) {
-    let gremlinStr = `g.E(${this.getIdFromProps(props)}).hasLabel('${this.label}')` + this.actionBuilder('has', props);
+    const gremlinStr = `g.E(${this.getIdFromProps(props)}).hasLabel('${this.label}')` + this.actionBuilder('has', props);
     return this.executeOrPass(gremlinStr, callback);
   }
 
@@ -96,9 +100,9 @@ class EdgeModel extends Model {
     if (typeof vertexModel === 'string') {
       label = vertexModel;
       props = properties;
+      // eslint-disable-next-line new-cap
       model = new this.g.vertexModel(label, {}, this.g)
-    }
-    else {
+    } else {
       props = this.parseProps(properties, vertexModel);
       model = vertexModel;
       label = model.label;
