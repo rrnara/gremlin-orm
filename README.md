@@ -32,21 +32,28 @@ const options = {
 const client = new Gremlin.driver.Client('wss://--TEST-COSMOSDB--.gremlin.cosmos.azure.com:443/', options);
 const g = new GremlinOrm(['azure', 'pk', 'test-partition'], client);
 
-const Person = g.define('person', {
-  name: {
-    type: g.STRING,
-    required: true
+const Person = g.define(
+  'person',
+  {
+    name: {
+      type: g.STRING,
+      required: true
+    },
+    age: {
+      type: g.NUMBER
+    }
   },
-  age: {
-    type: g.NUMBER
+  {
+    getDetails: function (suffix) { return `${this.name} ${suffix}, Age ${this.age}`; }
   }
-});
+);
 
 Person.create(req.body, (error, result) => {
   if (error) {
     res.send(error);
   }
   else {
+    console.log(result.callMethods('getDetails', 'Jr'));
     res.send(result);
     // result formatted as nice JSON Object
     /*
@@ -149,18 +156,25 @@ _This ORM utilizes Model definitions similar to [Sequelize](https://github.com/s
 ##### Arguments
 * `label`: Label to be used on all vertices of this model
 * `schema`: A schema object which defines allowed property keys and allowed values/types for each key
+* `methods`: An object which defines methods that can be called on instance of model
 
 ##### Example
 ```javascript
-const Person = g.define('person', {
-  name: {
-    type: g.STRING,
-    required: true
+const Person = g.define(
+  'person',
+  {
+    name: {
+      type: g.STRING,
+      required: true
+    },
+    age: {
+      type: g.NUMBER
+    }
   },
-  age: {
-    type: g.NUMBER
+  {
+    getDetails: function (suffix) { return `${this.name} ${suffix}, Age ${this.age}`; }
   }
-});
+);
 
 ```
 
@@ -172,17 +186,24 @@ const Person = g.define('person', {
 ##### Arguments
 * `label`: Label to be used on all edges of this model
 * `schema`: A schema object which defines allowed property keys and allowed values/types for each key
+* `methods`: An object which defines methods that can be called on instance of model
 
 ##### Example
 ```javascript
-const Knows = g.defineEdge('knows', {
-  from: {
-    type: g.STRING
+const Knows = g.defineEdge(
+  'knows',
+  {
+    from: {
+      type: g.STRING
+    },
+    since: {
+      type: g.DATE
+    }
   },
-  since: {
-    type: g.DATE
+  {
+    relationshipDetails: function () { return `Since ${this.since}`; }
   }
-});
+);
 ```
 
 #### Model Data types

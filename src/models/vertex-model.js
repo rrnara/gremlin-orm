@@ -8,10 +8,11 @@ const Model = require('./model');
 * @param {object} gorm
 */
 class VertexModel extends Model {
-  constructor(label, schema, gorm) {
+  constructor(label, schema, methods, gorm) {
     super(gorm, '')
     this.label = label;
     this.schema = schema;
+    this.methods = methods;
   }
 
   /**

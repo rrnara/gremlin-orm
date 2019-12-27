@@ -28,29 +28,32 @@ class Gorm {
   * an alias for defineVertex
   * @param {string} label
   * @param {object} schema
+  * @param {object} methods
   */
-  define(label, schema) {
-    return this.defineVertex(label, schema);
+  define(label, schema, methods) {
+    return this.defineVertex(label, schema, methods);
   }
 
   /**
   * defines a new instance of the VertexModel class - see generic and vertex model methods
   * @param {string} label label to be used on all vertices of this model
   * @param {object} schema a schema object which defines allowed property keys and allowed values/types for each key
+  * @param {object} methods an object which defines methods that can be called on instance of model
   */
-  defineVertex(label, schema) {
-    this.definedVertices[label] = schema;
-    return new VertexModel(label, schema, this);
+  defineVertex(label, schema, methods) {
+    this.definedVertices[label] = { schema, methods };
+    return new VertexModel(label, schema, methods, this);
   }
 
   /**
   * defines a new instance of the EdgeModel class - see generic and edge model methods
   * @param {string} label label to be used on all edges of this model
   * @param {object} schema a schema object which defines allowed property keys and allowed values/types for each key
+  * @param {object} methods an object which defines methods that can be called on instance of model
   */
-  defineEdge(label, schema) {
-    this.definedEdges[label] = schema;
-    return new EdgeModel(label, schema, this);
+  defineEdge(label, schema, methods) {
+    this.definedEdges[label] = { schema, methods };
+    return new EdgeModel(label, schema, methods, this);
   }
 
   /**
@@ -72,8 +75,8 @@ class Gorm {
     let VERTEX, EDGE;
     if (this.checkModels) {
       data = [[], []];
-      VERTEX = new VertexModel('null', {}, this.g);
-      EDGE = new EdgeModel('null', {}, this.g);
+      VERTEX = new VertexModel('null', {}, {}, this.g);
+      EDGE = new EdgeModel('null', {}, {}, this.g);
     }
 
     let gremlinResponseToUse;
@@ -120,7 +123,7 @@ class Gorm {
 
             // If property is defined in schema as a Date type, convert it from integer date into a JavaScript Date object.
             // Otherwise, no conversion necessary for strings, numbers, or booleans
-            if (definition && (VertexModel.isDefaultDateProp(propKey) || (definition[propKey] && definition[propKey].type === this.g.DATE))) {
+            if (definition && (VertexModel.isDefaultDateProp(propKey) || (definition.schema[propKey] && definition.schema[propKey].type === this.g.DATE))) {
               object[propKey] = Array.isArray(property) ? property.map(p => new Date(p)) : new Date(property);
             } else {
               object[propKey] = property;

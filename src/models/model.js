@@ -134,6 +134,16 @@ class Model {
   }
 
   /**
+  * Calls methods defined as part of schema
+  * @param {string} methodName
+  * @param {array} args
+  */
+  callMethods(methodName, ...args) {
+    if (!this.methods[methodName]) throw new Error('Method not found');
+    return this.methods[methodName].apply(this, args);
+  }
+
+  /**
   * Builds a command string to be executed or passed using props
   * @param {string} action e.g., 'has', 'property'
   * @param {object} props
