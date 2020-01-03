@@ -20,7 +20,7 @@ class Gorm {
     } else {
       this.dialect = dialect;
     }
-    this.logger = (logger === true) ? consleLogger : logger;
+    this.logger = (logger === true) ? consoleLogger : logger;
     this.definedVertices = {};
     this.definedEdges = {};
     this.vertexModel = VertexModel;

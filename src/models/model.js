@@ -259,7 +259,7 @@ class Model {
  * @param {object} model - model to check schema against
  */
   parseProps(properties, model) {
-    const schema = Object.assign({ [createdAt]: { type: 'date' }, [updatedAt]: { type: 'date' } }, model ? model.schema : this.schema);
+    const schema = Object.assign({ id: { type: 'string' }, [createdAt]: { type: 'date' }, [updatedAt]: { type: 'date' } }, model ? model.schema : this.schema);
     const props = {};
     const that = this;
 
