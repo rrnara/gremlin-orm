@@ -15,22 +15,38 @@ $ npm install --save @rrnara/gremlin-orm
 ## Example
 
 ```javascript
+const genericPool = require('generic-pool');
 const GremlinOrm = require('gremlin-orm');
 const Gremlin = require('gremlin');
-const Predicate = require('gremlin-orm/predicate');
+const Action = require('gremlin-orm/Action');
 // const g = new gremlinOrm('neo4j'); // connects to localhost:8182 by default
 
-const user = '/dbs/--TESTDB--/colls/--TESTGRAPH--';
-const primaryKey = '--TEST-PRIMARY-KEY--';
-const authenticator = new Gremlin.driver.auth.PlainTextSaslAuthenticator(user, primaryKey);
-const options = {
-  authenticator,
-  traversalsource: 'g',
-  rejectUnauthorized: true,
-  mimeType: 'application/vnd.gremlin-v2.0+json'
+const dbLogger = (msg) => console.log(msg);
+const dbErrorLogger = (msg) => console.error(msg);
+const factory = {
+  create: function() {
+    const user = '/dbs/--TESTDB--/colls/--TESTGRAPH--';
+    const primaryKey = '--TEST-PRIMARY-KEY--';
+    const authenticator = new Gremlin.driver.auth.PlainTextSaslAuthenticator(user, primaryKey);
+    const options = {
+      authenticator,
+      traversalsource: 'g',
+      rejectUnauthorized: true,
+      mimeType: 'application/vnd.gremlin-v2.0+json'
+    };
+    const client = new Gremlin.driver.Client('wss://--TEST-COSMOSDB--.gremlin.cosmos.azure.com:443/', options);
+    client.addListener('log', dbLogger);
+    client.addListener('socketError', dbErrorLogger);
+    return client;
+  },
+  destroy: function(client) {
+    client.close();
+  }
 };
-const client = new Gremlin.driver.Client('wss://--TEST-COSMOSDB--.gremlin.cosmos.azure.com:443/', options);
-const g = new GremlinOrm(['azure', 'pk', 'test-partition'], client);
+const connectionPool = genericPool.createPool(factory, { min: 0, max: 10, evictionRunIntervalMillis: 120000, idleTimeoutMillis: 230000 });
+connectionPool.on('factoryCreateError', dbErrorLogger);
+connectionPool.on('factoryDestroyError', dbErrorLogger);
+const g = new GremlinOrm(['azure', 'pk', 'test-partition'], connectionPool, true); // Can use dbLogger as parameter instead of true
 
 const Person = g.define(
   'person',
@@ -44,7 +60,7 @@ const Person = g.define(
     }
   },
   {
-    getDetails: function (suffix) { return `${this.name} ${suffix}, Age ${this.age}`; }
+    getDetails: function(suffix) { return `${this.name} ${suffix}, Age ${this.age}`; }
   }
 );
 
@@ -53,7 +69,7 @@ Person.create(req.body, (error, result) => {
     res.send(error);
   }
   else {
-    console.log(result.callMethods('getDetails', 'Jr'));
+    console.log(result.invoke('getDetails', 'Jr'));
     res.send(result);
     // result formatted as nice JSON Object
     /*
@@ -92,11 +108,13 @@ Initialize the gremlin-orm instance with parameters matching the [gremlin-javasc
 * [delete](#delete) - delete an existing vertex or edge
 * [order](#order) - order the results by property and asc/desc
 * [limit](#limit) - limit the number of results returned
+* [invoke](#invoke) - Invoke methods defined along with schema
 
 #### Vertex Methods
 * [create](#create) - create a new vertex
 * [find](#find) - find first vertex with matching properties
 * [findAll](#findAll) - find all vertices with matching properties
+* [findActionAll](#findActionAll) - find all vertices when particular action is applied on the properties
 * [createEdge](#createEdge) - define a new edge relationship to another vertex(es)
 * [findEdge](#findEdge) - find edges directly connected to the relevant vertex(es)
 * [findRelated](#findRelated) - find all vertices connected to initial vertex(es) through a type of edge with optional properties
@@ -108,8 +126,9 @@ Initialize the gremlin-orm instance with parameters matching the [gremlin-javasc
 * [findAll](#edge-model-findAll) - find all edges with matching properties
 * [findVertex](#findVertex) - find all vertices that are connected by the relevant edges
 
-#### Predicate Methods
+#### Action Methods
 Refer to [Tinkerpop documentation](https://tinkerpop.apache.org/docs/3.4.0/reference/#a-note-on-predicates)
+Only custom query option is Or - to perform Or condition queries
 
 
 ## Method Chaining
@@ -321,6 +340,29 @@ The following options are available when defining model schemas:
     // Return first 100 people that John knows
   });
 ```
+<a name="invoke"></a>
+### invoke(methodName, ...args)
+
+`.invoke` takes a method name as key and invokes it with arguments provided.
+
+##### Arguments
+* `methodName`: Method name as string key as defined along with schema
+* `args` (optional): Arguments to pass to the method
+
+##### Returns
+* Same return value as the method invoked
+
+##### Example
+```javascript
+Person.create(req.body, (error, result) => {
+  if (error) {
+    res.send(error);
+  }
+  else {
+    console.log(result.invoke('getDetails', 'Jr')); // displays "${result.name} Jr"
+  }
+});
+```
 
 ## Vertex Methods
 
@@ -411,6 +453,31 @@ The following options are available when defining model schemas:
       ]
     */
   });
+```
+
+<a name="findActionAll"></a>
+### findActionAll({action}, {props}, [callback])
+
+`.findActionAll` find all vertices when particular action is applied on the properties
+
+##### Arguments
+* `action`: Action providing context to operation to perform over the props
+* `props`: Object containing key value pairs of properties
+* `callback` (optional): Some callback function with (error, result) arguments
+
+##### Returns
+* Returns an array containing all vertices matching props as objects
+
+##### Example
+```javascript
+  Person.findActionAll(Action.Or, { name: ['Abc', 'Def'], age: 75 }, (error, results) => {
+    if (error) {
+      console.error(error);
+    } else {
+      console.log(`Results: ${results.length}`);
+      console.log(results);
+    }
+  })
 ```
 
 <a name="createEdge"></a>
@@ -646,7 +713,7 @@ Knows.find({'through': 'school'}).findVertex(Person, {'occupation': 'developer'}
 });
 ```
 
-## Predicate Methods
+## Action Methods
 
 ### P_eq(object)
 * `object`: Object to check equality with
@@ -702,10 +769,26 @@ Knows.find({'through': 'school'}).findVertex(Person, {'occupation': 'developer'}
 ### TextP_notContaining(str)
 * `str`: String to not be contained
 
+### Or(props)
+* `props`: key/value to perform OR query over
+
 #### Example
 
 ```javascript
-  Person.findAll({ age: Predicate.P_gt(34) }, (error, results) => {
+  Person.findAll({ age: Action.P_gt(34) }, (error, results) => {
+    if (error) {
+      console.error(error);
+    } else {
+      console.log(`Results: ${results.length}`);
+      console.log(results);
+    }
+  })
+```
+
+Person with name either Abc or Def or age is 75
+
+```javascript
+  Person.findActionAll(Action.Or, { name: ['Abc', 'Def'], age: 75 }, (error, results) => {
     if (error) {
       console.error(error);
     } else {

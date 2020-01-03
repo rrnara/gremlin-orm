@@ -1,8 +1,12 @@
 /* eslint-disable standard/no-callback-literal */
-const Predicate = require('../predicate');
+const Action = require('../action');
 
 const createdAt = 'createdAt';
 const updatedAt = 'updatedAt';
+
+function isNil(obj) {
+  return obj == null;
+}
 
 /**
 * @param {object} gorm
@@ -56,8 +60,8 @@ class Model {
     const propsToUse = Object.assign({ [updatedAt]: this.dateGetMillis(new Date()) }, props);
     const checkSchemaResponse = this.checkSchema(schema, propsToUse);
     if (this.checkSchemaFailed(checkSchemaResponse)) return callback(checkSchemaResponse); // should it throw an error?
-    gremlinStr += this.actionBuilder('property', propsToUse);
-    return this.executeOrPass(gremlinStr, callback);
+    gremlinStr += this.actionBuilder(Action.Property, propsToUse);
+    return this.executeOrPass(gremlinStr, callback, !Array.isArray(this));
   }
 
   /**
@@ -105,7 +109,7 @@ class Model {
   * @param {object} singleObject
   */
   executeQuery(query, callback, singleObject) {
-    console.log(`query: ${query}`);
+    this.g.log(`query: ${query}`);
     this.g.queryRaw(query, (err, result) => {
       if (err) {
         callback({ error: err });
@@ -113,11 +117,11 @@ class Model {
       }
       // Create nicer Object
       const response = this.g.familiarizeAndPrototype.call(this, result);
-      if (singleObject && response.length > 0) {
-        callback(null, response[0]);
-        return;
+      if (singleObject) {
+        callback(null, response[0] || null);
+      } else {
+        callback(null, response);
       }
-      callback(null, response);
     });
   }
 
@@ -134,11 +138,11 @@ class Model {
   }
 
   /**
-  * Calls methods defined as part of schema
+  * Calls method defined as part of schema
   * @param {string} methodName
   * @param {array} args
   */
-  callMethods(methodName, ...args) {
+  invoke(methodName, ...args) {
     if (!this.methods[methodName]) throw new Error('Method not found');
     return this.methods[methodName].apply(this, args);
   }
@@ -149,23 +153,14 @@ class Model {
   * @param {object} props
   */
   actionBuilder(action, props) {
-    const isPropertyAction = action === 'property';
     let propsStr = '';
     const keys = Object.keys(props);
     keys.forEach(key => {
       if (key !== 'id') {
-        if (Array.isArray(props[key])) {
-          if (isPropertyAction) {
-            for (let i = 0; i < props[key].length; i += 1) {
-              propsStr += `.${action}('${key}',${Predicate.stringifyValue(props[key][i])})`;
-            }
-          } else {
-            const withinPredicate = Predicate.P_within(props[key]);
-            propsStr += `.${action}('${key}',${withinPredicate.getGremlinStr()})`;
-          }
-        } else {
-          const value = props[key];
-          propsStr += `.${action}('${key}',${Predicate.stringifyValue(value)})`;
+        const createdActions = action(key, props[key]);
+        const actionsArray = Array.isArray(createdActions) ? createdActions : [createdActions];
+        for (const actionInstance of actionsArray) {
+          propsStr += `.${actionInstance.getGremlinStr()}`;
         }
       }
     });
@@ -179,12 +174,14 @@ class Model {
     if (this.constructor.name === 'VertexModel') {
       arr.createEdge = this.createEdge;
       arr.findEdge = this.findEdge;
+      arr.findEdgeType = this.findEdgeType;
       arr.findImplicit = this.findImplicit;
     } else if (this.constructor.name === 'EdgeModel') {
       arr.findVertex = this.findVertex;
     }
     arr.order = this.order;
     arr.limit = this.limit;
+    arr.update = this.update;
     arr.delete = this.delete;
     arr.query = this.query;
     arr.actionBuilder = this.actionBuilder;
@@ -262,7 +259,7 @@ class Model {
  * @param {object} model - model to check schema against
  */
   parseProps(properties, model) {
-    const schema = model ? model.schema : this.schema;
+    const schema = Object.assign({ [createdAt]: { type: 'date' }, [updatedAt]: { type: 'date' } }, model ? model.schema : this.schema);
     const props = {};
     const that = this;
 
@@ -275,13 +272,15 @@ class Model {
           value = parseFloat(input);
           if (Number.isNaN(value)) value = null;
           break;
-        case 'boolean':
-          if (input.toString() === 'true' || input.toString() === 'false') {
-            value = input.toString() === 'true';
+        case 'boolean': {
+          const boolStr = input.toString();
+          if (boolStr === 'true' || boolStr === 'false') {
+            value = boolStr === 'true';
           } else {
             value = null;
           }
           break;
+        }
         case 'date': {
           const millis = that.dateGetMillis(input);
           value = Number.isNaN(millis) ? null : millis;
@@ -294,9 +293,9 @@ class Model {
     }
 
     function changeTypeWrapper(key, value) {
-      if (value instanceof Predicate) {
+      if (value instanceof Action) {
         const newParams = changeTypeWrapper(key, value.params);
-        return new Predicate(value.operation, newParams);
+        return new Action(value.operation, newParams);
       } else if (Array.isArray(value)) {
         return value.map(arrValue => changeTypes(key, arrValue));
       } else {
@@ -305,7 +304,7 @@ class Model {
     }
 
     Object.keys(schema).forEach((key) => {
-      if (properties[key]) {
+      if (Object.prototype.hasOwnProperty.call(properties, key)) {
         props[key] = changeTypeWrapper(key, properties[key]);
       }
     });
@@ -351,7 +350,7 @@ class Model {
     if (checkRequired) {
       for (const sKey of schemaKeys) {
         if (schema[sKey].required) {
-          if (!props[sKey]) {
+          if (isNil(props[sKey])) {
             addErrorToResponse(sKey, `A valid value for '${sKey}' is required`);
           }
         }

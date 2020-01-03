@@ -1,8 +1,10 @@
 const VertexModel = require('./models/vertex-model');
 const EdgeModel = require('./models/edge-model');
 
+const consoleLogger = (msg) => console.log(msg)
+
 class Gorm {
-  constructor(dialect, client) {
+  constructor(dialect, connectionPool, logger) {
     // Constants
     this.DIALECTS = { AZURE: 'azure' };
     this.STRING = 'string';
@@ -10,7 +12,7 @@ class Gorm {
     this.BOOLEAN = 'boolean';
     this.DATE = 'date';
 
-    this.client = client;
+    this.connectionPool = connectionPool;
     if (Array.isArray(dialect)) {
       this.dialect = dialect[0];
       this.partitionKey = dialect[1];
@@ -18,17 +20,23 @@ class Gorm {
     } else {
       this.dialect = dialect;
     }
+    this.logger = (logger === true) ? consleLogger : logger;
     this.definedVertices = {};
     this.definedEdges = {};
     this.vertexModel = VertexModel;
     this.edgeModel = EdgeModel;
   }
 
+  log(msg) {
+    if (this.logger) {
+      this.logger(msg);
+    }
+  }
+
   /**
   * an alias for defineVertex
   * @param {string} label
   * @param {object} schema
-  * @param {object} methods
   */
   define(label, schema, methods) {
     return this.defineVertex(label, schema, methods);
@@ -38,7 +46,6 @@ class Gorm {
   * defines a new instance of the VertexModel class - see generic and vertex model methods
   * @param {string} label label to be used on all vertices of this model
   * @param {object} schema a schema object which defines allowed property keys and allowed values/types for each key
-  * @param {object} methods an object which defines methods that can be called on instance of model
   */
   defineVertex(label, schema, methods) {
     this.definedVertices[label] = { schema, methods };
@@ -49,7 +56,6 @@ class Gorm {
   * defines a new instance of the EdgeModel class - see generic and edge model methods
   * @param {string} label label to be used on all edges of this model
   * @param {object} schema a schema object which defines allowed property keys and allowed values/types for each key
-  * @param {object} methods an object which defines methods that can be called on instance of model
   */
   defineEdge(label, schema, methods) {
     this.definedEdges[label] = { schema, methods };
@@ -62,7 +68,21 @@ class Gorm {
   * @param {function} callback Some callback function with (err, result) arguments.
   */
   queryRaw(string, callback) {
-    this.client.submit(string).then(result => callback(null, result), error => callback(error));
+    const errorCallback = (error) => callback(error);
+    const acquireCallback = (client) => {
+      client.submit(string)
+        .then(
+          result => {
+            this.connectionPool.release(client);
+            callback(null, result)
+          },
+          error => {
+            this.connectionPool.release(client);
+            errorCallback(error);
+          }
+        );
+    }
+    this.connectionPool.acquire().then(acquireCallback, errorCallback);
   }
 
   /**

@@ -1,4 +1,5 @@
 const Model = require('./model');
+const Action = require('../action');
 
 /**
 * @param {string} label
@@ -46,12 +47,12 @@ class EdgeModel extends Model {
 
     const [a] = this.getRandomVariable();
     let gremlinQuery = outGremlinStr + `.as('${a}')` + inGremlinStr;
-    gremlinQuery += `.addE('${this.label}')${this.actionBuilder('property', propsToUse)}.from('${a}')`;
+    gremlinQuery += `.addE('${this.label}')${this.actionBuilder(Action.Property, propsToUse)}.from('${a}')`;
 
     if (both === true) {
       const [b] = this.getRandomVariable(1, [a]);
       const extraGremlinQuery = `${inV.getGremlinStr()}.as('${b}')${outV.getGremlinStr().slice(1)}` +
-                      `.addE('${this.label}')${this.actionBuilder('property', propsToUse)}.from('${b}')`;
+                      `.addE('${this.label}')${this.actionBuilder(Action.Property, propsToUse)}.from('${b}')`;
       const intermediate = (err, results) => {
         if (err) {
           cb(err);
@@ -76,7 +77,7 @@ class EdgeModel extends Model {
   * @param {function} callback Some callback function with (err, result) arguments
   */
   find(props, callback) {
-    const gremlinStr = `g.E(${this.getIdFromProps(props)}).hasLabel('${this.label}')` + this.actionBuilder('has', props);
+    const gremlinStr = `g.E(${this.getIdFromProps(props)}).hasLabel('${this.label}')` + this.actionBuilder(Action.Has, props);
     return this.executeOrPass(gremlinStr, callback, true);
   }
 
@@ -86,7 +87,7 @@ class EdgeModel extends Model {
   * @param {function} callback Some callback function with (err, result) arguments
   */
   findAll(props, callback) {
-    const gremlinStr = `g.E(${this.getIdFromProps(props)}).hasLabel('${this.label}')` + this.actionBuilder('has', props);
+    const gremlinStr = `g.E(${this.getIdFromProps(props)}).hasLabel('${this.label}')` + this.actionBuilder(Action.Has, props);
     return this.executeOrPass(gremlinStr, callback);
   }
 
@@ -102,15 +103,15 @@ class EdgeModel extends Model {
       label = vertexModel;
       props = properties;
       // eslint-disable-next-line new-cap
-      model = new this.g.vertexModel(label, {}, this.g)
+      model = this.g.definedVertices[label] || new this.g.vertexModel(label, {}, {}, this.g)
     } else {
       props = this.parseProps(properties, vertexModel);
       model = vertexModel;
       label = model.label;
     }
     let gremlinStr = this.getGremlinStr();
-    gremlinStr += `.bothV()${this.actionBuilder('has', props)}`;
-    return this.executeOrPass.call(model, gremlinStr, callback);
+    gremlinStr += `.bothV()${this.actionBuilder(Action.Has, props)}`;
+    return model.executeOrPass(gremlinStr, callback);
   }
 }
 
