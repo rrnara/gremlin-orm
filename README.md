@@ -108,6 +108,7 @@ Initialize the gremlin-orm instance with parameters matching the [gremlin-javasc
 * [delete](#delete) - delete an existing vertex or edge
 * [order](#order) - order the results by property and asc/desc
 * [limit](#limit) - limit the number of results returned
+* [range](#range) - Array range of results returned
 * [invoke](#invoke) - Invoke methods defined along with schema
 
 #### Vertex Methods
@@ -340,6 +341,24 @@ The following options are available when defining model schemas:
     // Return first 100 people that John knows
   });
 ```
+
+<a name="range"></a>
+### range(start, end, [callback])
+
+`.range` Array range of results returned
+
+##### Arguments
+* `start`: Starting index of results to return (inclusive)
+* `end`: Ending index of results to return (exclusive)
+* `callback` (optional): Some callback function with (error, result) arguments
+
+##### Example
+```javascript
+  Person.find({'name': 'John'}).findEdge('knows').range(20, 40, (error, result) => {
+    // Return results 20-39 people that John knows
+  });
+```
+
 <a name="invoke"></a>
 ### invoke(methodName, ...args)
 
@@ -769,13 +788,19 @@ Knows.find({'through': 'school'}).findVertex(Person, {'occupation': 'developer'}
 ### TextP_notContaining(str)
 * `str`: String to not be contained
 
+### Has_And(key, value)
+* `key`: key to query over (an array field ideally)
+* `value`: An array ideally, where the key needs to contain all the provided values
+
 ### Or(props)
 * `props`: key/value to perform OR query over
 
 #### Example
 
+Person with age greater than 35
+
 ```javascript
-  Person.findAll({ age: Action.P_gt(34) }, (error, results) => {
+  Person.findAll({ age: Action.P_gt(35) }, (error, results) => {
     if (error) {
       console.error(error);
     } else {
@@ -785,7 +810,20 @@ Knows.find({'through': 'school'}).findVertex(Person, {'occupation': 'developer'}
   })
 ```
 
-Person with name either Abc or Def or age is 75
+Person with both the tags 'Abc' and 'Def'
+
+```javascript
+  Person.findActionAll(Action.Has_And, { tags: ['Abc', 'Def'] }, (error, results) => {
+    if (error) {
+      console.error(error);
+    } else {
+      console.log(`Results: ${results.length}`);
+      console.log(results);
+    }
+  })
+```
+
+Person with name either 'Abc' or 'Def' or age is 75
 
 ```javascript
   Person.findActionAll(Action.Or, { name: ['Abc', 'Def'], age: 75 }, (error, results) => {

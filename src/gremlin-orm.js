@@ -1,7 +1,9 @@
 const VertexModel = require('./models/vertex-model');
 const EdgeModel = require('./models/edge-model');
 
-const consoleLogger = (msg) => console.log(msg)
+const consoleLogger = (msg) => console.log(msg);
+const NULL_VERTEX = new VertexModel('null', {}, {}, this.g);
+const NULL_EDGE = new EdgeModel('null', {}, {}, this.g);
 
 class Gorm {
   constructor(dialect, connectionPool, logger) {
@@ -91,14 +93,7 @@ class Gorm {
   * @param {array} gremlinResponse
   */
   familiarizeAndPrototype(gremlinResponse) {
-    let data = [];
-    let VERTEX, EDGE;
-    if (this.checkModels) {
-      data = [[], []];
-      VERTEX = new VertexModel('null', {}, {}, this.g);
-      EDGE = new EdgeModel('null', {}, {}, this.g);
-    }
-
+    const data = this.checkModels ? [[], []] : [];
     let gremlinResponseToUse;
     if (Array.isArray(gremlinResponse)) {
       gremlinResponseToUse = gremlinResponse;
@@ -110,17 +105,30 @@ class Gorm {
     gremlinResponseToUse.forEach((grem) => {
       let object;
 
+      const isVertex = grem.type === 'vertex';
+      // const isEdge = grem.type === 'edge';
+      let definition = null;
+      if (!isVertex) {
+        const existingDefinition = this.g.definedEdges[grem.label];
+        definition = existingDefinition ? new EdgeModel(grem.label, existingDefinition.schema, existingDefinition.methods, this.g) : null;
+      } else {
+        const existingDefinition = this.g.definedVertices[grem.label];
+        definition = existingDefinition ? new VertexModel(grem.label, existingDefinition.schema, existingDefinition.methods, this.g) : null;
+      }
+
       if (this.checkModels) {
         // if checkModels is true (running .query with raw set to false), this may refer to a VertexModel objects
         // but data returned could be EdgeModel
-        if (grem.type === 'vertex') object = Object.create(VERTEX);
-        else if (grem.type === 'edge') object = Object.create(EDGE);
+        const cleanModel = definition || (isVertex ? NULL_VERTEX : NULL_EDGE);
+        object = Object.create(cleanModel);
+        object.cleanModel = cleanModel;
       } else {
-        object = Object.create(this);
+        object = this.cloneClean();
+        object.cleanModel = this.getCleanModel();
       }
       object.id = grem.id;
       object.label = grem.label;
-      if (grem.type === 'edge') {
+      if (!isVertex) {
         object.inV = grem.inV;
         object.outV = grem.outV
         if (grem.inVLabel) object.inVLabel = grem.inVLabel;
@@ -132,13 +140,11 @@ class Gorm {
         Object.keys(grem.properties).forEach((propKey) => {
           if (propKey !== currentPartition) {
             let property;
-            let definition = null;
-            if (grem.type === 'edge') {
+            if (!isVertex) {
               property = grem.properties[propKey];
-              definition = this.g.definedEdges[grem.label];
             } else {
-              property = grem.properties[propKey].length > 1 ? grem.properties[propKey].map(p => p.value) : grem.properties[propKey][0].value;
-              definition = this.g.definedVertices[grem.label];
+              const isArray = definition && definition.schema[propKey] && definition.schema[propKey].isArray;
+              property = isArray || grem.properties[propKey].length > 1 ? grem.properties[propKey].map(p => p.value) : grem.properties[propKey][0].value;
             }
 
             // If property is defined in schema as a Date type, convert it from integer date into a JavaScript Date object.
@@ -152,7 +158,7 @@ class Gorm {
         });
       }
       if (this.checkModels) {
-        if (grem.type === 'vertex') {
+        if (isVertex) {
           data[0].push(object);
         } else {
           data[1].push(object);
@@ -162,8 +168,8 @@ class Gorm {
       }
     });
     if (this.checkModels) {
-      VERTEX.addArrayMethods(data[0]);
-      EDGE.addArrayMethods(data[1]);
+      NULL_VERTEX.addArrayMethods(data[0]);
+      NULL_EDGE.addArrayMethods(data[1]);
     } else {
       this.addArrayMethods(data);
     }

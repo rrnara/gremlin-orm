@@ -8,7 +8,7 @@ class Action {
   getGremlinStr() {
     const paramsToUse = Array.isArray(this.params) ? this.params : [this.params];
     const gremlinStr = paramsToUse.map(p => Action.stringifyValue(p)).join(',');
-    return `${this.operation}(${gremlinStr})`;
+    return gremlinStr === '' ? this.operation : `${this.operation}(${gremlinStr})`;
   }
 
   static stringifyValue(value) {
@@ -89,17 +89,29 @@ class Action {
     return new Action('TextP.notContaining', str);
   }
 
-  static Property(key, value) {
+  static Property(key, value, forUpdate = false) {
     if (Array.isArray(value)) {
-      return value.map(v => new Action('property', [key, v]));
+      return value.map((v, i) => {
+        const params = forUpdate && i !== 0 ? [new Action('list', []), key, v] : [key, v];
+        return new Action('property', params);
+      });
     } else {
       return new Action('property', [key, value]);
     }
   }
 
+  static Property_Update(key, value) {
+    return Action.Property(key, value, true);
+  }
+
   static Has(key, value) {
     const valueToUse = Array.isArray(value) ? Action.P_within(value) : value;
     return new Action('has', [key, valueToUse]);
+  }
+
+  static Has_And(key, values) {
+    const valuesArray = Array.isArray(values) ? values : [values];
+    return valuesArray.map(value => new Action('has', [key, value]));
   }
 
   static Or(props) {

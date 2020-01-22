@@ -28,6 +28,23 @@ class Model {
     return key === createdAt || key === updatedAt;
   }
 
+  getCleanModel() {
+    return this.cleanModel || this;
+  }
+
+  cloneClean() {
+    // Why do we use cleanModel? This is the due to dangers of Object.create. Consider following example:
+    // const test = { a: 100, b: 200 }
+    // const test2 = Object.create(test)
+    // test2.b = 250
+    // test2.c = 300
+    // console.log(test2) ==> { b: 250, c: 300 }
+    // ??????? console.log(test2.a) ==> 100 ???????
+    // console.log(test2.b) ==> 250
+    // We always want to clone cleaner model (just functions) and not the one which already has property values in it
+    return Object.create(this.getCleanModel());
+  }
+
   /**
   * Perform a cypher query and parse the results
   * @param {string} string
@@ -60,7 +77,7 @@ class Model {
     const propsToUse = Object.assign({ [updatedAt]: this.dateGetMillis(new Date()) }, props);
     const checkSchemaResponse = this.checkSchema(schema, propsToUse);
     if (this.checkSchemaFailed(checkSchemaResponse)) return callback(checkSchemaResponse); // should it throw an error?
-    gremlinStr += this.actionBuilder(Action.Property, propsToUse);
+    gremlinStr += this.actionBuilder(Action.Property_Update, propsToUse);
     return this.executeOrPass(gremlinStr, callback, !Array.isArray(this));
   }
 
@@ -104,6 +121,17 @@ class Model {
   }
 
   /**
+  * Retrives results in the range specified
+  * @param {number} start starting index (inclusive)
+  * @param {number} end ending index (exlusive)
+  */
+  range(start, end, callback) {
+    let gremlinStr = this.getGremlinStr();
+    gremlinStr += `.range(${parseInt(start)}, ${parseInt(end)})`;
+    this.executeOrPass(gremlinStr, callback);
+  }
+
+  /**
   * Takes the built query string and executes it
   * @param {string} query query string to execute.
   * @param {object} singleObject
@@ -132,7 +160,7 @@ class Model {
   */
   executeOrPass(gremlinStr, callback, singleObject) {
     if (callback) return this.executeQuery(gremlinStr, callback, singleObject);
-    const response = Object.create(this);
+    const response = this.cloneClean();
     response.gremlinStr = gremlinStr;
     return response;
   }
@@ -143,8 +171,12 @@ class Model {
   * @param {array} args
   */
   invoke(methodName, ...args) {
-    if (!this.methods[methodName]) throw new Error('Method not found');
+    if (!this.hasMethod(methodName)) throw new Error('Method not found');
     return this.methods[methodName].apply(this, args);
+  }
+
+  hasMethod(methodName) {
+    return !!this.methods[methodName];
   }
 
   /**
@@ -218,9 +250,9 @@ class Model {
     let idString = '';
     if (Object.prototype.hasOwnProperty.call(props, 'id')) {
       if (Array.isArray(props.id)) {
-        idString = `'${props.id.join(',')}'`;
+        idString = props.id.map(i => Action.stringifyValue(i)).join(',');
       } else {
-        idString = `'${props.id}'`;
+        idString = Action.stringifyValue(props.id);
       }
     }
     return idString;
