@@ -1,6 +1,6 @@
 {
-  "name": "gremlin-orm",
-  "version": "1.1.9",
+  "name": "@rrnara/gremlin-orm",
+  "version": "2.0.0",
   "description": "Gremlin ORM for Node.js",
   "main": "dist/gremlin-orm.js",
   "scripts": {
@@ -22,38 +22,17 @@
     "cosmos",
     "db"
   ],
-  "author": {
-    "email": "gremlin.orm@gmail.com",
-    "name": "gremlin-orm"
-  },
+  "author": "@rrnara",
   "bugs": {
-    "url": "https://github.com/gremlin-orm/gremlin-orm/issues"
+    "url": "https://github.com/rrnara/gremlin-orm/issues"
   },
   "contributors": [
-    {
-      "email": "f@frmn.io",
-      "name": "Freeman Chen"
-    },
-    {
-      "email": "godronus@gmail.com",
-      "name": "Gordon Farquharson"
-    },
-    {
-      "email": "jeremysanglee@gmail.com",
-      "name": "Jeremy Lee"
-    },
-    {
-      "email": "rrnara@gmail.com",
-      "name": "Ram Ramani"
-    }
+    "Ram Ramani <rrnara@gmail.com>"
   ],
   "license": "MIT",
   "homepage": "https://github.com/rrnara/gremlin-orm#readme",
   "maintainers": [
-    {
-      "email": "rrnara@gmail.com",
-      "name": "Ram Ramani"
-    }
+    "Ram Ramani <rrnara@gmail.com>"
   ],
   "dependencies": {
     "gremlin": "^3.4.4"
@@ -61,5 +40,8 @@
   "devDependencies": {
     "babel-cli": "^6.26.0",
     "babel-preset-es2015": "^6.24.1"
+  },
+  "directories": {
+    "test": "test"
   }
 }
