@@ -9,7 +9,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gremlin-orm/gremlin-orm.git"
+    "url": "git+https://github.com/rrnara/gremlin-orm.git"
   },
   "keywords": [
     "orm",
