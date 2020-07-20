@@ -1,18 +1,16 @@
 const VertexModel = require('./models/vertex-model');
 const EdgeModel = require('./models/edge-model');
+const DataTypes = require('./data-types');
 
 const consoleLogger = (msg) => console.log(msg);
-const NULL_VERTEX = new VertexModel('null', {}, {}, this.g);
-const NULL_EDGE = new EdgeModel('null', {}, {}, this.g);
 
 class Gorm {
   constructor(dialect, connectionPool, logger) {
     // Constants
     this.DIALECTS = { AZURE: 'azure' };
-    this.STRING = 'string';
-    this.NUMBER = 'number';
-    this.BOOLEAN = 'boolean';
-    this.DATE = 'date';
+    Object.keys(DataTypes).forEach(key => {
+      this[key] = DataTypes[key];
+    });
 
     this.connectionPool = connectionPool;
     if (Array.isArray(dialect)) {
@@ -27,6 +25,8 @@ class Gorm {
     this.definedEdges = {};
     this.vertexModel = VertexModel;
     this.edgeModel = EdgeModel;
+    this.NULL_VERTEX = new VertexModel('null', {}, {}, this);
+    this.NULL_EDGE = new EdgeModel('null', {}, {}, this);
   }
 
   log(msg) {
@@ -94,15 +94,7 @@ class Gorm {
   */
   familiarizeAndPrototype(gremlinResponse) {
     const data = this.checkModels ? [[], []] : [];
-    let gremlinResponseToUse;
-    if (Array.isArray(gremlinResponse)) {
-      gremlinResponseToUse = gremlinResponse;
-    } else if (typeof gremlinResponse === 'object' && Object.prototype.hasOwnProperty.call(gremlinResponse, '_items')) {
-      gremlinResponseToUse = gremlinResponse._items;
-    } else {
-      gremlinResponseToUse = [gremlinResponse];
-    }
-    gremlinResponseToUse.forEach((grem) => {
+    gremlinResponse.forEach((grem) => {
       let object;
 
       const isVertex = grem.type === 'vertex';
@@ -119,7 +111,7 @@ class Gorm {
       if (this.checkModels) {
         // if checkModels is true (running .query with raw set to false), this may refer to a VertexModel objects
         // but data returned could be EdgeModel
-        const cleanModel = definition || (isVertex ? NULL_VERTEX : NULL_EDGE);
+        const cleanModel = definition || (isVertex ? this.g.NULL_VERTEX : this.g.NULL_EDGE);
         object = Object.create(cleanModel);
         object.cleanModel = cleanModel;
       } else {
@@ -168,8 +160,8 @@ class Gorm {
       }
     });
     if (this.checkModels) {
-      NULL_VERTEX.addArrayMethods(data[0]);
-      NULL_EDGE.addArrayMethods(data[1]);
+      this.g.NULL_VERTEX.addArrayMethods(data[0]);
+      this.g.NULL_EDGE.addArrayMethods(data[1]);
     } else {
       this.addArrayMethods(data);
     }

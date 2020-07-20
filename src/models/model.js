@@ -1,11 +1,16 @@
 /* eslint-disable standard/no-callback-literal */
+const isNil = require('lodash/isNil');
 const Action = require('../action');
+const DataTypes = require('../data-types');
 
 const createdAt = 'createdAt';
 const updatedAt = 'updatedAt';
+const basicSchema = { id: { type: DataTypes.STRING }, [createdAt]: { type: DataTypes.DATE }, [updatedAt]: { type: DataTypes.DATE } };
 
-function isNil(obj) {
-  return obj == null;
+function isRightType(item, schemaType) {
+  const schemaTypeToUse = schemaType !== DataTypes.POINT ? schemaType : 'object';
+  // eslint-disable-next-line valid-typeof
+  return typeof item === schemaTypeToUse;
 }
 
 /**
@@ -33,7 +38,7 @@ class Model {
   }
 
   cloneClean() {
-    // Why do we use cleanModel? This is the due to dangers of Object.create. Consider following example:
+    // Why do we use cleanModel, this the due dangers of Object.create. Consider following example:
     // const test = { a: 100, b: 200 }
     // const test2 = Object.create(test)
     // test2.b = 250
@@ -41,7 +46,7 @@ class Model {
     // console.log(test2) ==> { b: 250, c: 300 }
     // ??????? console.log(test2.a) ==> 100 ???????
     // console.log(test2.b) ==> 250
-    // We always want to clone cleaner model (just functions) and not the one which already has property values in it
+    // We always want to clone cleaner model and not the one which already has property values in it
     return Object.create(this.getCleanModel());
   }
 
@@ -131,20 +136,40 @@ class Model {
     this.executeOrPass(gremlinStr, callback);
   }
 
+  count(callback) {
+    let gremlinStr = this.getGremlinStr();
+    gremlinStr += '.count()';
+    this.executeQuery(gremlinStr, callback, 'count');
+  }
+
   /**
   * Takes the built query string and executes it
   * @param {string} query query string to execute.
   * @param {object} singleObject
   */
   executeQuery(query, callback, singleObject) {
-    this.g.log(`query: ${query}`);
+    this.g.log(`gremlin: ${query}`);
     this.g.queryRaw(query, (err, result) => {
       if (err) {
         callback({ error: err });
         return;
       }
+
+      let gremlinResponseToUse;
+      if (Array.isArray(result)) {
+        gremlinResponseToUse = result;
+      } else if (typeof result === 'object' && Object.prototype.hasOwnProperty.call(result, '_items')) {
+        gremlinResponseToUse = result._items;
+      } else {
+        gremlinResponseToUse = [result];
+      }
+
+      if (singleObject === 'count') {
+        callback(null, gremlinResponseToUse[0]);
+      }
+
       // Create nicer Object
-      const response = this.g.familiarizeAndPrototype.call(this, result);
+      const response = this.g.familiarizeAndPrototype.call(this, gremlinResponseToUse);
       if (singleObject) {
         callback(null, response[0] || null);
       } else {
@@ -291,7 +316,7 @@ class Model {
  * @param {object} model - model to check schema against
  */
   parseProps(properties, model) {
-    const schema = Object.assign({ id: { type: 'string' }, [createdAt]: { type: 'date' }, [updatedAt]: { type: 'date' } }, model ? model.schema : this.schema);
+    const schema = Object.assign(basicSchema, model ? model.schema : this.schema);
     const props = {};
     const that = this;
 
@@ -300,11 +325,11 @@ class Model {
       const type = defaultDateProp ? 'date' : schema[key].type;
       let value;
       switch (type) {
-        case 'number':
+        case DataTypes.NUMBER:
           value = parseFloat(input);
           if (Number.isNaN(value)) value = null;
           break;
-        case 'boolean': {
+        case DataTypes.BOOLEAN: {
           const boolStr = input.toString();
           if (boolStr === 'true' || boolStr === 'false') {
             value = boolStr === 'true';
@@ -313,11 +338,16 @@ class Model {
           }
           break;
         }
-        case 'date': {
+        case DataTypes.DATE: {
           const millis = that.dateGetMillis(input);
           value = Number.isNaN(millis) ? null : millis;
           break;
         }
+        case DataTypes.POINT:
+        case DataTypes.OBJECT:
+          // For POINT, it will be an object like: { type: 'Point', coordinates: [lng, lat] }
+          value = input;
+          break;
         default: // string
           value = input.toString();
       }
@@ -367,7 +397,7 @@ class Model {
   * Checks whether the props object adheres to the schema model specifications
   * @param {object} schema
   * @param {object} props
-  * @param {boolean} checkRequired should be true for create and update methods
+  * @param {boolean} checkRequired should be true for create and false for update methods
   */
   checkSchema(schema, props, checkRequired) {
     const schemaKeys = Object.keys(schema);
@@ -405,15 +435,13 @@ class Model {
               addErrorToResponse(pKey, `'${pKey}' should be an array`);
             } else {
               for (const item of props[pKey]) {
-                // eslint-disable-next-line valid-typeof
-                if (!(typeof item === schema[pKey].type)) {
+                if (!isRightType(item, schema[pKey].type)) {
                   addErrorToResponse(pKey, `'${pKey}' should contain ${schema[pKey].type}`);
                 }
               }
             }
           } else {
-            // eslint-disable-next-line valid-typeof
-            if (!(typeof props[pKey] === schema[pKey].type)) {
+            if (!isRightType(props[pKey], schema[pKey].type)) {
               addErrorToResponse(pKey, `'${pKey}' should be a ${schema[pKey].type}`);
             }
           }

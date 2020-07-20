@@ -182,7 +182,7 @@ class VertexModel extends Model {
     const inModel = incoming ? this : relatedModel;
     let gremlinStr = this.getGremlinStr();
     for (let i = 0; i < depth; i += 1) {
-      gremlinStr += `.${edgeStr}.hasLabel('${label}')${this.actionBuilder(Action.Has, props)}.as('edges').${vertexStr}.hasLabel('${relatedLabel}')`;
+      gremlinStr += `.${edgeStr}.hasLabel('${label}')${this.actionBuilder(Action.Has, props)}.as('multiple_${label}').${vertexStr}.hasLabel('${relatedLabel}')`;
     }
     return inModel.executeOrPass(gremlinStr, cb);
   }
